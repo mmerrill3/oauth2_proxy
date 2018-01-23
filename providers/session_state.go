@@ -16,6 +16,7 @@ type SessionState struct {
 	RefreshToken string
 	Email        string
 	User         string
+	RawIDToken   string
 }
 
 func (s *SessionState) IsExpired() bool {
@@ -38,6 +39,9 @@ func (s *SessionState) String() string {
 	}
 	if s.RefreshToken != "" {
 		o += " refresh_token:true"
+	}
+	if s.RawIDToken != "" {
+		o += " id_token:true"
 	}
 	return o + "}"
 }
@@ -77,7 +81,14 @@ func (s *SessionState) EncryptedString(c *cookie.Cipher) (string, error) {
 			return "", err
 		}
 	}
-	return fmt.Sprintf("%s|%s|%s|%d|%s", s.accountInfo(), a, i, s.ExpiresOn.Unix(), r), nil
+	rawIDToken := s.RawIDToken
+	if rawIDToken != "" {
+		rawIDToken, err = c.Encrypt(rawIDToken)
+		if err != nil {
+			return "", err
+		}
+	}
+	return fmt.Sprintf("%s|%s|%d|%s|%s", s.accountInfo(), a, s.ExpiresOn.Unix(), r, rawIDToken), nil
 }
 
 func decodeSessionStatePlain(v string) (s *SessionState, err error) {
@@ -128,6 +139,13 @@ func DecodeSessionState(v string, c *cookie.Cipher) (s *SessionState, err error)
 
 	if chunks[4] != "" {
 		if sessionState.RefreshToken, err = c.Decrypt(chunks[4]); err != nil {
+			return nil, err
+		}
+	}
+
+	if c != nil && chunks[4] != "" {
+		sessionState.RawIDToken, err = c.Decrypt(chunks[4])
+		if err != nil {
 			return nil, err
 		}
 	}

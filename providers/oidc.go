@@ -69,6 +69,7 @@ func (p *OIDCProvider) Redeem(redirectURL, code string) (s *SessionState, err er
 		RefreshToken: token.RefreshToken,
 		ExpiresOn:    token.Expiry,
 		Email:        claims.Email,
+		RawIDToken:   rawIDToken,
 	}
 
 	return

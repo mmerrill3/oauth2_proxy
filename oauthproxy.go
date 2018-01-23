@@ -2,8 +2,12 @@ package main
 
 import (
 	b64 "encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/bitly/oauth2_proxy/cookie"
+	"github.com/bitly/oauth2_proxy/providers"
+	"github.com/mbland/hmacauth"
 	"html/template"
 	"log"
 	"net"
@@ -13,10 +17,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/bitly/oauth2_proxy/cookie"
-	"github.com/bitly/oauth2_proxy/providers"
-	"github.com/mbland/hmacauth"
 )
 
 const SignatureHeader = "GAP-Signature"
@@ -582,9 +582,38 @@ func (p *OAuthProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		p.OAuthCallback(rw, req)
 	case path == p.AuthOnlyPath:
 		p.AuthenticateOnly(rw, req)
+	case path == "/exchangeCookie":
+		p.ExchangeCookie(rw, req)
 	default:
 		p.Proxy(rw, req)
 	}
+}
+
+func (p *OAuthProxy) ExchangeCookie(rw http.ResponseWriter, req *http.Request) {
+	status := p.Authenticate(rw, req)
+	if status != http.StatusAccepted {
+		http.Error(rw, "unauthorized request", http.StatusUnauthorized)
+	}
+	session, _, _ := p.LoadCookiedSession(req)
+	log.Printf("session info is %s", session)
+	token := struct {
+		Id_token      string `json:"id_token"`
+		Access_token  string `json:"access_token"`
+		Refresh_token string `json:"refresh_token"`
+		Expires_in    int64  `json:"expires_in"`
+	}{
+		Id_token:      session.RawIDToken,
+		Access_token:  session.AccessToken,
+		Refresh_token: session.RefreshToken,
+		Expires_in:    int64(session.ExpiresOn.Sub(time.Now()) / time.Second),
+	}
+	jsonBytes, err := json.Marshal(token)
+	if err != nil {
+		p.ErrorPage(rw, 500, "Internal Error", err.Error())
+		return
+	}
+	rw.Header().Set("Content-Type", "application/json")
+	rw.Write(jsonBytes)
 }
 
 func (p *OAuthProxy) SignIn(rw http.ResponseWriter, req *http.Request) {
@@ -805,6 +834,7 @@ func (p *OAuthProxy) Authenticate(rw http.ResponseWriter, req *http.Request) int
 	}
 	if p.PassAccessToken && session.AccessToken != "" {
 		req.Header["X-Forwarded-Access-Token"] = []string{session.AccessToken}
+		req.Header["Authorization"] = []string{"Bearer " + session.RawIDToken}
 	}
 	if p.PassAuthorization && session.IdToken != "" {
 		req.Header["Authorization"] = []string{fmt.Sprintf("Bearer %s", session.IdToken)}
