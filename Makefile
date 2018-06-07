@@ -1,6 +1,6 @@
 
 REGISTRY = 080385600816.dkr.ecr.us-east-1.amazonaws.com
-TAG = 0.0.10
+TAG = 0.0.11
 LOGIN:=$(shell aws ecr get-login --no-include-email)
 PWD:=$(shell pwd)
 

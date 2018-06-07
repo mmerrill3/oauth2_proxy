@@ -41,7 +41,7 @@ func NewGoogleProvider(p *ProviderData) *GoogleProvider {
 	if p.RedeemURL.String() == "" {
 		p.RedeemURL = &url.URL{Scheme: "https",
 			Host: "www.googleapis.com",
-			Path: "/oauth2/v3/token"}
+			Path: "/oauth2/v4/token"}
 	}
 	if p.ValidateURL.String() == "" {
 		p.ValidateURL = &url.URL{Scheme: "https",
